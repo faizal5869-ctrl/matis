@@ -8,18 +8,24 @@
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col items-center justify-center p-4">
 
-<div class="w-full max-w-md bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
+<div class="w-full max-w-lg bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
     <div class="flex items-center justify-between mb-4">
         <h1 class="font-bold text-lg text-slate-900">Meeting.ai Studio</h1>
         <span id="status-badge" class="text-xs bg-amber-100 text-amber-700 font-semibold px-2.5 py-1 rounded-full">Bersedia</span>
     </div>
 
-    <p id="instruction" class="text-sm text-slate-600 mb-6">Sila klik butang di bawah untuk memulakan sesi rakaman atau nota baharu.</p>
+    <p id="instruction" class="text-sm text-slate-600 mb-4">Sila klik butang di bawah untuk memulakan rakaman suara.</p>
 
-    <!-- Timer / Output Display -->
-    <div id="display-box" class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center mb-6">
+    <!-- Timer Display -->
+    <div id="display-box" class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center mb-4">
         <div id="timer" class="text-3xl font-black text-slate-800">00:00</div>
         <p id="status-text" class="text-xs text-slate-500 mt-1">Sistem siap untuk diuji</p>
+    </div>
+
+    <!-- Ruang Kotak Transkrip Teks -->
+    <div class="mb-4">
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Transkrip Percubaan / Nota Langsung:</label>
+        <textarea id="transcript-box" rows="4" class="w-full p-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="Transkrip teks perbualan akan muncul di sini..."></textarea>
     </div>
 
     <!-- Action Buttons -->
@@ -37,10 +43,36 @@
     let isRecording = false;
     let seconds = 0;
     let timerInterval = null;
+    let recognition = null;
+
+    // Sokongan Web Speech API untuk transkrip suara ke teks
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        recognition = new SpeechRecognition();
+        recognition.lang = 'ms-MY'; // Tetapan Bahasa Melayu
+        recognition.continuous = true;
+        recognition.interimResults = true;
+
+        recognition.onresult = (event) => {
+            let interimTranscript = '';
+            let finalTranscript = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    finalTranscript += event.results[i][0].transcript;
+                } else {
+                    interimTranscript += event.results[i][0].transcript;
+                }
+            }
+            if (finalTranscript) {
+                document.getElementById('transcript-box').value += finalTranscript + ' ';
+            }
+        };
+    }
 
     function handleNewNote() {
         seconds = 0;
         document.getElementById('timer').innerText = "00:00";
+        document.getElementById('transcript-box').value = "";
         document.getElementById('status-text').innerText = "Sesi baharu dimulakan";
         document.getElementById('status-badge').innerText = "Aktif";
         document.getElementById('status-badge').className = "text-xs bg-emerald-100 text-emerald-700 font-semibold px-2.5 py-1 rounded-full";
@@ -58,20 +90,29 @@
             btn.className = "flex-1 bg-slate-700 hover:bg-slate-800 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer";
             badge.innerText = "Merakam";
             badge.className = "text-xs bg-red-100 text-red-700 font-semibold px-2.5 py-1 rounded-full";
-            statusText.innerText = "Sedang merakam audio...";
+            statusText.innerText = "Sedang merakam & menukar suara ke teks...";
             
+            if (recognition) {
+                try { recognition.start(); } catch(e) {}
+            }
+
             timerInterval = setInterval(() => {
                 seconds++;
                 let mins = Math.floor(seconds / 60).toString().padStart(2, '0');
                 let secs = (seconds % 60).toString().padStart(2, '0');
                 document.getElementById('timer').innerText = `${mins}:${secs}`;
             }, 1000);
+
         } else {
             btn.innerText = "Mula Rakam";
             btn.className = "flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer";
             badge.innerText = "Selesai";
             badge.className = "text-xs bg-blue-100 text-blue-700 font-semibold px-2.5 py-1 rounded-full";
-            statusText.innerText = "Rakaman disimpan.";
+            statusText.innerText = "Rakaman dihentikan.";
+            
+            if (recognition) {
+                try { recognition.stop(); } catch(e) {}
+            }
             clearInterval(timerInterval);
         }
     }
