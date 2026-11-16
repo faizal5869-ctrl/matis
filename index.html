@@ -3,37 +3,41 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Meeting.ai Studio - Full Local Studio</title>
+<title>Meeting.ai Studio</title>
 <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col items-center justify-center p-4">
 
-<div class="w-full max-w-2xl bg-slate-800 rounded-2xl shadow-2xl p-6 border border-slate-700">
-    <div class="flex items-center justify-between mb-4 border-b border-slate-700 pb-3">
-        <div>
-            <h1 class="font-bold text-xl text-white">Meeting.ai Studio</h1>
-            <p class="text-xs text-slate-400">Mod Tempatan (Local Studio)</p>
-        </div>
-        <span id="status-badge" class="text-xs bg-emerald-500/20 text-emerald-400 font-semibold px-3 py-1 rounded-full border border-emerald-500/30">Sedia</span>
+<div class="w-full max-w-xl bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
+    <div class="flex items-center justify-between mb-4">
+        <h1 class="font-bold text-lg text-slate-900">Meeting.ai Studio</h1>
+        <span id="status-badge" class="text-xs bg-emerald-100 text-emerald-700 font-semibold px-2.5 py-1 rounded-full">Sedia</span>
     </div>
 
-    <!-- Bahagian Input Teks & Nota -->
+    <!-- Bahagian Upload & Pemain Audio -->
+    <div class="mb-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl p-4">
+        <label class="block text-xs font-semibold text-slate-600 mb-2">Muat Naik Fail Rakaman Audio (.m4a / .webm / .mp3):</label>
+        <input type="file" id="audio-file-input" accept="audio/*" class="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-slate-800 file:text-white hover:file:bg-slate-900 cursor-pointer w-full mb-3">
+        
+        <!-- Pemain Audio supaya anda boleh dengar balik fail yang di-upload -->
+        <audio id="audio-player" controls class="w-full hidden"></audio>
+    </div>
+
+    <!-- Kotak Transkrip / Nota (Boleh taip atau semak sambil dengar audio) -->
     <div class="mb-4">
-        <label class="block text-xs font-semibold text-slate-300 mb-1">Nota, Transkrip atau Agenda Perbualan:</label>
-        <textarea id="transcript-box" rows="5" class="w-full p-3 text-sm bg-slate-900 border border-slate-700 rounded-xl text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Taip atau tampal nota mesyuarat di sini..."></textarea>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Nota & Semakan Transkrip Perbualan:</label>
+        <textarea id="transcript-box" rows="4" class="w-full p-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="Dengar fail audio di atas dan taip atau kemaskini nota mesyuarat anda di sini..."></textarea>
     </div>
 
-    <!-- Kotak Hasil Rumusan AI & Mind Map / Grafik Poin -->
-    <div class="mb-6">
-        <label class="block text-xs font-semibold text-slate-300 mb-1">Rumusan AI & Struktur Poin Penting (Mind Map Visual):</label>
-        <div id="ai-summary" class="w-full p-4 text-sm bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-indigo-200 min-h-[120px] space-y-2">
-            <span class="text-slate-400 italic">Klik butang di bawah untuk menjana rumusan dan struktur mind map automatik...</span>
+    <!-- Kotak Rumusan AI & Mind Map -->
+    <div class="mb-5">
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Rumusan AI & Struktur Mind Map:</label>
+        <div id="ai-summary" class="w-full p-3 text-sm bg-blue-50 border border-blue-100 rounded-xl text-slate-700 min-h-[80px]">
+            Klik butang jana untuk hasilkan rumusan berdasarkan nota anda...
         </div>
     </div>
 
     <!-- Action Buttons -->
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <button onclick="resetApp()" class="bg-slate-700 hover:bg-slate-600 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer">
-            🔄 Reset Sesi
-        </button>
-        <button onclick="generateAISummary()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer shadow-lg shadow-indigo-600/3
+    <div class="flex gap-2">
+        <button onclick="generateAISummary()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer">
+            Jana Rumusan &
