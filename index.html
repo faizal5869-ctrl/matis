@@ -11,156 +11,39 @@
 <div class="w-full max-w-xl bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
     <div class="flex items-center justify-between mb-4">
         <h1 class="font-bold text-lg text-slate-900">Meeting.ai Studio</h1>
-        <span id="status-badge" class="text-xs bg-amber-100 text-amber-700 font-semibold px-2.5 py-1 rounded-full">Bersedia</span>
+        <span id="status-badge" class="text-xs bg-emerald-100 text-emerald-700 font-semibold px-2.5 py-1 rounded-full">Sedia Muat Naik</span>
     </div>
 
-    <!-- Timer / Display -->
-    <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center mb-4">
-        <div id="timer" class="text-3xl font-black text-slate-800">00:00</div>
-        <p id="status-text" class="text-xs text-slate-500 mt-1">Sistem siap untuk merakam</p>
+    <!-- Bahagian Upload Fail Audio -->
+    <div class="mb-4 bg-slate-50 border border-dashed border-slate-300 rounded-xl p-4 text-center">
+        <label class="block text-xs font-semibold text-slate-600 mb-2">Pilih atau Masukkan Fail Rakaman Audio (.webm / .mp3):</label>
+        <input type="file" id="audio-file-input" accept="audio/*" class="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-slate-800 file:text-white hover:file:bg-slate-900 cursor-pointer">
     </div>
 
-    <!-- Kotak Nota -->
+    <!-- Kotak Transkrip / Nota -->
     <div class="mb-4">
-        <label class="block text-xs font-semibold text-slate-600 mb-1">Nota & Transkrip Perbualan:</label>
-        <textarea id="transcript-box" rows="4" class="w-full p-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="Taip nota mesyuarat atau hasil perbincangan di sini..."></textarea>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Transkrip & Nota Perbualan:</label>
+        <textarea id="transcript-box" rows="4" class="w-full p-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="Nota akan dikesan automatik dari fail audio atau boleh taip manual di sini..."></textarea>
     </div>
 
-    <!-- Kotak Rumusan AI -->
+    <!-- Kotak Rumusan AI & Grafik / Poin Penting -->
     <div class="mb-5">
-        <label class="block text-xs font-semibold text-slate-600 mb-1">Rumusan & Poin Penting AI:</label>
-        <div id="ai-summary" class="w-full p-3 text-sm bg-blue-50 border border-blue-100 rounded-xl text-slate-700 min-h-[70px]">
-            Rumusan automatik akan dipaparkan di sini...
+        <label class="block text-xs font-semibold text-slate-600 mb-1">Rumusan AI & Analisis Grafik:</label>
+        <div id="ai-summary" class="w-full p-3 text-sm bg-blue-50 border border-blue-100 rounded-xl text-slate-700 min-h-[80px]">
+            Rumusan automatik dan struktur poin penting akan dipaparkan di sini...
         </div>
     </div>
 
     <!-- Action Buttons -->
-    <div class="grid grid-cols-2 gap-2 mb-2">
-        <button type="button" onclick="handleNewNote()" class="bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer">
-            + Sesi Baharu
-        </button>
-        <button type="button" id="rec-btn" onclick="toggleRecord()" class="bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer">
-            Mula Rakam
-        </button>
-    </div>
     <div class="flex gap-2">
-        <button type="button" onclick="generateAISummary()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer">
-            Jana Rumusan AI
+        <button onclick="processUploadedAudio()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer">
+            Proses & Jana Rumusan AI
         </button>
-        <button type="button" onclick="downloadNotes()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer">
+        <button onclick="downloadNotes()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer">
             Muat Turun Nota
         </button>
     </div>
 </div>
 
 <script>
-    let isRecording = false;
-    let seconds = 0;
-    let timerInterval = null;
-    let mediaRecorder;
-    let audioChunks = [];
-
-    function handleNewNote() {
-        seconds = 0;
-        document.getElementById('timer').innerText = "00:00";
-        document.getElementById('transcript-box').value = "";
-        document.getElementById('ai-summary').innerText = "Rumusan automatik akan dipaparkan di sini...";
-        document.getElementById('status-text').innerText = "Sesi baharu dimulakan";
-        document.getElementById('status-badge').innerText = "Bersedia";
-        document.getElementById('status-badge').className = "text-xs bg-amber-100 text-amber-700 font-semibold px-2.5 py-1 rounded-full";
-    }
-
-    async function toggleRecord() {
-        const btn = document.getElementById('rec-btn');
-        const badge = document.getElementById('status-badge');
-        const statusText = document.getElementById('status-text');
-
-        if (!isRecording) {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
-                audioChunks = [];
-
-                mediaRecorder.ondataavailable = event => {
-                    audioChunks.push(event.data);
-                };
-
-                mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                    const audioUrl = URL.createObjectURL(audioBlob);
-                    
-                    // Muat turun fail audio rakaman secara automatik
-                    const a = document.createElement('a');
-                    a.style.display = 'none';
-                    a.href = audioUrl;
-                    a.download = `rakaman-meeting-${Date.now()}.webm`;
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(audioUrl);
-                    
-                    statusText.innerText = "Rakaman audio berjaya disimpan ke komputer!";
-                    document.getElementById('transcript-box.value') = "Fail audio rakaman telah dimuat turun.";
-                };
-
-                mediaRecorder.start();
-                isRecording = true;
-
-                btn.innerText = "Henti Rakam";
-                btn.className = "bg-slate-700 hover:bg-slate-800 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer";
-                badge.innerText = "Merakam";
-                badge.className = "text-xs bg-red-100 text-red-700 font-semibold px-2.5 py-1 rounded-full";
-                statusText.innerText = "Sedang merakam suara...";
-
-                seconds = 0;
-                timerInterval = setInterval(() => {
-                    seconds++;
-                    let mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-                    let secs = (seconds % 60).toString().padStart(2, '0');
-                    document.getElementById('timer').innerText = `${mins}:${secs}`;
-                }, 1000);
-
-            } catch (err) {
-                alert("Sila benarkan akses mikrofon pada pelayar web anda.");
-            }
-        } else {
-            mediaRecorder.stop();
-            isRecording = false;
-
-            btn.innerText = "Mula Rakam";
-            btn.className = "bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer";
-            badge.innerText = "Selesai";
-            badge.className = "text-xs bg-blue-100 text-blue-700 font-semibold px-2.5 py-1 rounded-full";
-            clearInterval(timerInterval);
-        }
-    }
-
-    function generateAISummary() {
-        const text = document.getElementById('transcript-box').value.trim();
-        const summaryBox = document.getElementById('ai-summary');
-        
-        if (!text) {
-            summaryBox.innerHTML = "<span class='text-red-500 font-medium'>Sila taip nota atau transkrip di ruang atas terlebih dahulu.</span>";
-            return;
-        }
-
-        summaryBox.innerHTML = "Sedang menjana rumusan...";
-        setTimeout(() => {
-            summaryBox.innerHTML = `<strong>Poin Penting Rumusan:</strong><br>• Catatan: ${text.substring(0, 80)}...<br>• Status: Analisis nota berjaya disempurnakan.`;
-        }, 600);
-    }
-
-    function downloadNotes() {
-        const text = document.getElementById('transcript-box').value;
-        const summary = document.getElementById('ai-summary').innerText;
-        const blob = new Blob([`NOTA MESYUARAT:\n${text}\n\nRUMUSAN AI:\n${summary}`], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `nota-meeting-${Date.now()}.txt`;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-</script>
-
-</body>
-</html>
+    document.getElementById('audio-file-input').addEventListener('change', function(
