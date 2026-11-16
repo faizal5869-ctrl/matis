@@ -17,13 +17,13 @@
     <!-- Timer / Display -->
     <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center mb-4">
         <div id="timer" class="text-3xl font-black text-slate-800">00:00</div>
-        <p id="status-text" class="text-xs text-slate-500 mt-1">Sistem siap untuk digunakan</p>
+        <p id="status-text" class="text-xs text-slate-500 mt-1">Sistem siap untuk merakam</p>
     </div>
 
     <!-- Kotak Nota -->
     <div class="mb-4">
         <label class="block text-xs font-semibold text-slate-600 mb-1">Nota & Transkrip Perbualan:</label>
-        <textarea id="transcript-box" rows="4" class="w-full p-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="Taip nota atau hasil perbincangan di sini..."></textarea>
+        <textarea id="transcript-box" rows="4" class="w-full p-3 text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-400" placeholder="Taip nota mesyuarat atau hasil perbincangan di sini..."></textarea>
     </div>
 
     <!-- Kotak Rumusan AI -->
@@ -57,6 +57,8 @@
     let isRecording = false;
     let seconds = 0;
     let timerInterval = null;
+    let mediaRecorder;
+    let audioChunks = [];
 
     function handleNewNote() {
         seconds = 0;
@@ -64,34 +66,70 @@
         document.getElementById('transcript-box').value = "";
         document.getElementById('ai-summary').innerText = "Rumusan automatik akan dipaparkan di sini...";
         document.getElementById('status-text').innerText = "Sesi baharu dimulakan";
-        document.getElementById('status-badge').innerText = "Aktif";
-        document.getElementById('status-badge').className = "text-xs bg-emerald-100 text-emerald-700 font-semibold px-2.5 py-1 rounded-full";
+        document.getElementById('status-badge').innerText = "Bersedia";
+        document.getElementById('status-badge').className = "text-xs bg-amber-100 text-amber-700 font-semibold px-2.5 py-1 rounded-full";
     }
 
-    function toggleRecord() {
+    async function toggleRecord() {
         const btn = document.getElementById('rec-btn');
         const badge = document.getElementById('status-badge');
         const statusText = document.getElementById('status-text');
 
-        isRecording = !isRecording;
+        if (!isRecording) {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
 
-        if (isRecording) {
-            btn.innerText = "Henti Rakam";
-            badge.innerText = "Merakam";
-            badge.className = "text-xs bg-red-100 text-red-700 font-semibold px-2.5 py-1 rounded-full";
-            statusText.innerText = "Sistem sedang mengira masa rakaman...";
-            
-            timerInterval = setInterval(() => {
-                seconds++;
-                let mins = Math.floor(seconds / 60).toString().padStart(2, '0');
-                let secs = (seconds % 60).toString().padStart(2, '0');
-                document.getElementById('timer').innerText = `${mins}:${secs}`;
-            }, 1000);
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    
+                    // Muat turun fail audio rakaman secara automatik
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = audioUrl;
+                    a.download = `rakaman-meeting-${Date.now()}.webm`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(audioUrl);
+                    
+                    statusText.innerText = "Rakaman audio berjaya disimpan ke komputer!";
+                    document.getElementById('transcript-box.value') = "Fail audio rakaman telah dimuat turun.";
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+
+                btn.innerText = "Henti Rakam";
+                btn.className = "bg-slate-700 hover:bg-slate-800 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer";
+                badge.innerText = "Merakam";
+                badge.className = "text-xs bg-red-100 text-red-700 font-semibold px-2.5 py-1 rounded-full";
+                statusText.innerText = "Sedang merakam suara...";
+
+                seconds = 0;
+                timerInterval = setInterval(() => {
+                    seconds++;
+                    let mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+                    let secs = (seconds % 60).toString().padStart(2, '0');
+                    document.getElementById('timer').innerText = `${mins}:${secs}`;
+                }, 1000);
+
+            } catch (err) {
+                alert("Sila benarkan akses mikrofon pada pelayar web anda.");
+            }
         } else {
+            mediaRecorder.stop();
+            isRecording = false;
+
             btn.innerText = "Mula Rakam";
+            btn.className = "bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer";
             badge.innerText = "Selesai";
             badge.className = "text-xs bg-blue-100 text-blue-700 font-semibold px-2.5 py-1 rounded-full";
-            statusText.innerText = "Rakaman dihentikan.";
             clearInterval(timerInterval);
         }
     }
@@ -107,14 +145,14 @@
 
         summaryBox.innerHTML = "Sedang menjana rumusan...";
         setTimeout(() => {
-            summaryBox.innerHTML = `<strong>Poin Penting Rumusan:</strong><br>• Topik: ${text.substring(0, 50)}...<br>• Status: Nota berjaya dianalisis.`;
+            summaryBox.innerHTML = `<strong>Poin Penting Rumusan:</strong><br>• Catatan: ${text.substring(0, 80)}...<br>• Status: Analisis nota berjaya disempurnakan.`;
         }, 600);
     }
 
     function downloadNotes() {
         const text = document.getElementById('transcript-box').value;
         const summary = document.getElementById('ai-summary').innerText;
-        const blob = new Blob([`NOTAS MESYUARAT:\n${text}\n\nRUMUSAN AI:\n${summary}`], { type: 'text/plain;charset=utf-8' });
+        const blob = new Blob([`NOTA MESYUARAT:\n${text}\n\nRUMUSAN AI:\n${summary}`], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
