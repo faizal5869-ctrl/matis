@@ -8,31 +8,74 @@
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col items-center justify-center p-4">
 
-  <div class="w-full max-w-md bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
+<div class="w-full max-w-md bg-white rounded-2xl shadow-lg p-6 border border-slate-200">
     <div class="flex items-center justify-between mb-4">
-      <h1 class="font-bold text-lg text-slate-900">Meeting.ai Studio</h1>
-      <span id="status-badge" class="text-xs bg-amber-100 text-amber-700 font-semibold px-2.5 py-1 rounded-full">Bersedia</span>
+        <h1 class="font-bold text-lg text-slate-900">Meeting.ai Studio</h1>
+        <span id="status-badge" class="text-xs bg-amber-100 text-amber-700 font-semibold px-2.5 py-1 rounded-full">Bersedia</span>
     </div>
 
     <p id="instruction" class="text-sm text-slate-600 mb-6">Sila klik butang di bawah untuk memulakan sesi rakaman atau nota baharu.</p>
 
     <!-- Timer / Output Display -->
     <div id="display-box" class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center mb-6">
-      <div id="timer" class="text-3xl font-black text-slate-800">00:00</div>
-      <p id="status-text" class="text-xs text-slate-500 mt-1">Sistem siap untuk diuji</p>
+        <div id="timer" class="text-3xl font-black text-slate-800">00:00</div>
+        <p id="status-text" class="text-xs text-slate-500 mt-1">Sistem siap untuk diuji</p>
     </div>
 
     <!-- Action Buttons -->
     <div class="flex gap-2">
-      <button onclick="handleNewNote()" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer">
-        + Sesi Baharu
-      </button>
-      <button id="rec-btn" onclick="toggleRecord()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer">
-        Mula Rakam
-      </button>
+        <button onclick="handleNewNote()" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer">
+            + Sesi Baharu
+        </button>
+        <button id="rec-btn" onclick="toggleRecord()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer">
+            Mula Rakam
+        </button>
     </div>
-  </div>
+</div>
 
-  <script>
+<script>
     let isRecording = false;
     let seconds = 0;
+    let timerInterval = null;
+
+    function handleNewNote() {
+        seconds = 0;
+        document.getElementById('timer').innerText = "00:00";
+        document.getElementById('status-text').innerText = "Sesi baharu dimulakan";
+        document.getElementById('status-badge').innerText = "Aktif";
+        document.getElementById('status-badge').className = "text-xs bg-emerald-100 text-emerald-700 font-semibold px-2.5 py-1 rounded-full";
+    }
+
+    function toggleRecord() {
+        const btn = document.getElementById('rec-btn');
+        const badge = document.getElementById('status-badge');
+        const statusText = document.getElementById('status-text');
+
+        isRecording = !isRecording;
+
+        if (isRecording) {
+            btn.innerText = "Henti Rakam";
+            btn.className = "flex-1 bg-slate-700 hover:bg-slate-800 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer";
+            badge.innerText = "Merakam";
+            badge.className = "text-xs bg-red-100 text-red-700 font-semibold px-2.5 py-1 rounded-full";
+            statusText.innerText = "Sedang merakam audio...";
+            
+            timerInterval = setInterval(() => {
+                seconds++;
+                let mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+                let secs = (seconds % 60).toString().padStart(2, '0');
+                document.getElementById('timer').innerText = `${mins}:${secs}`;
+            }, 1000);
+        } else {
+            btn.innerText = "Mula Rakam";
+            btn.className = "flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors cursor-pointer";
+            badge.innerText = "Selesai";
+            badge.className = "text-xs bg-blue-100 text-blue-700 font-semibold px-2.5 py-1 rounded-full";
+            statusText.innerText = "Rakaman disimpan.";
+            clearInterval(timerInterval);
+        }
+    }
+</script>
+
+</body>
+</html>
