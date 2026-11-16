@@ -254,12 +254,24 @@
             </div>
 
             <!-- Recorded Audio Player (Appears when audio is recorded or uploaded) -->
-            <div id="recordedAudioContainer" class="hidden p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/80 space-y-2">
+            <div id="recordedAudioContainer" class="hidden p-3.5 rounded-xl bg-emerald-50/90 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 space-y-2.5">
               <div class="flex items-center justify-between text-xs font-semibold text-emerald-800 dark:text-emerald-300">
                 <span>Fail Audio Rakaman Sesi</span>
                 <a id="downloadAudioLink" href="data:audio/wav;base64," download="rakaman-ceramah.webm" class="underline hover:text-emerald-600">Muat Turun Audio</a>
               </div>
               <audio id="audioPlayback" controls class="w-full h-9"></audio>
+              <div id="postRecordActions" class="pt-1 flex flex-wrap items-center gap-2">
+                <button type="button" id="btnTranscribeBlob" onclick="transcribeSavedAudioBlob()" class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition cursor-pointer">
+                  <span>✨ Transkrip Audio & Jana Nota AI</span>
+                </button>
+                <button type="button" onclick="switchMainTab('notes')" class="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 transition cursor-pointer">
+                  <span>Buka Tab 2 (Nota) →</span>
+                </button>
+                <button type="button" onclick="switchMainTab('mindmap')" class="inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 hover:bg-emerald-100 transition cursor-pointer">
+                  <span>Buka Tab 3 (Peta Minda) →</span>
+                </button>
+              </div>
+              <p id="audioTranscribeHint" class="text-[11px] text-emerald-800/90 dark:text-emerald-300/90 leading-relaxed hidden"></p>
             </div>
           </div>
 
@@ -1050,11 +1062,19 @@
       showToast('Bahasa pertuturan ditukar kepada ' + lang, 'info');
     }
 
+    let lastRecordedBlob = null;
+    let speechSegmentsCapturedThisRun = 0;
+
+    function removeInitialSystemPlaceholder(session) {
+      if (session.segments.length === 1 && session.segments[0].speaker === 'Sistem' && session.segments[0].text.includes('Sesi baharu bermula')) {
+        session.segments = [];
+      }
+    }
+
     function toggleMicrophoneRecording() {
       if (appState.isRecordingMic) {
         stopAllActiveRecording();
-        showToast('Rakaman mikrofon dihentikan. Menyusun transkrip...');
-        generateAiNotesAndMindMap();
+        showToast('Rakaman mikrofon dihentikan. Memproses audio & nota...');
       } else {
         startMicrophoneRecording();
       }
@@ -1063,43 +1083,10 @@
     async function startMicrophoneRecording() {
       stopAllActiveRecording();
       const s = getCurrentSession();
+      speechSegmentsCapturedThisRun = 0;
       const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-      // Start MediaRecorder if permitted
-      try {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-          micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          audioContext = new (window.AudioContext || window.webkitAudioContext)();
-          const source = audioContext.createMediaStreamSource(micStream);
-          analyserNode = audioContext.createAnalyser();
-          analyserNode.fftSize = 128;
-          source.connect(analyserNode);
-
-          recordedChunks = [];
-          mediaRecorder = new MediaRecorder(micStream);
-          mediaRecorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) recordedChunks.push(e.data);
-          };
-          mediaRecorder.onstop = () => {
-            if (recordedChunks.length > 0) {
-              const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-              const url = URL.createObjectURL(blob);
-              const player = document.getElementById('audioPlayback');
-              const dlLink = document.getElementById('downloadAudioLink');
-              const box = document.getElementById('recordedAudioContainer');
-              if (player && dlLink && box) {
-                player.src = url;
-                dlLink.href = url;
-                box.classList.remove('hidden');
-              }
-            }
-          };
-          mediaRecorder.start();
-        }
-      } catch (err) {
-        // Microphone permission blocked in iframe or unavailable; continue with speech recognition or fallback notification
-      }
-
+      // 1. Start SpeechRecognition synchronously on user gesture first
       if (SpeechRecognitionAPI) {
         try {
           speechRecognition = new SpeechRecognitionAPI();
@@ -1112,6 +1099,8 @@
             for (let i = event.resultIndex; i < event.results.length; i++) {
               const transcriptChunk = event.results[i][0].transcript;
               if (event.results[i].isFinal) {
+                removeInitialSystemPlaceholder(s);
+                speechSegmentsCapturedThisRun++;
                 appendTranscriptSegment(transcriptChunk.trim(), s.speaker);
               } else {
                 interimText += transcriptChunk;
@@ -1123,8 +1112,11 @@
             }
           };
 
-          speechRecognition.onerror = () => {
-            // Keep running gracefully
+          speechRecognition.onerror = (ev) => {
+            const interimBox = document.getElementById('liveInterimBox');
+            if (interimBox && (ev.error === 'not-allowed' || ev.error === 'service-not-allowed' || ev.error === 'network')) {
+              interimBox.innerHTML = `<span class="text-amber-300">Merakam audio mikrofon... (Transkrip langsung disekat dalam tetingkap pratonton; audio akan diproses sebaik sahaja anda menekan Henti Rakaman).</span>`;
+            }
           };
 
           speechRecognition.onend = () => {
@@ -1144,6 +1136,159 @@
       startDurationTimer();
       document.getElementById('liveInterimBox').innerHTML = `<span>Mikrofon aktif (${escapeHtml(document.getElementById('speechLangSelect').value)}). Sila bercakap atau mulakan ceramah...</span>`;
       showToast('Rakaman mikrofon & transkrip langsung bermula!');
+
+      // 2. Start MediaRecorder for waveform & audio file capture
+      try {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const source = audioContext.createMediaStreamSource(micStream);
+          analyserNode = audioContext.createAnalyser();
+          analyserNode.fftSize = 128;
+          source.connect(analyserNode);
+
+          recordedChunks = [];
+          mediaRecorder = new MediaRecorder(micStream);
+          mediaRecorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+          };
+          mediaRecorder.onstop = async () => {
+            if (recordedChunks.length > 0) {
+              const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+              lastRecordedBlob = blob;
+              const url = URL.createObjectURL(blob);
+              const player = document.getElementById('audioPlayback');
+              const dlLink = document.getElementById('downloadAudioLink');
+              const box = document.getElementById('recordedAudioContainer');
+              if (player && dlLink && box) {
+                player.src = url;
+                dlLink.href = url;
+                box.classList.remove('hidden');
+              }
+              if (speechSegmentsCapturedThisRun === 0) {
+                await transcribeSavedAudioBlob();
+              } else {
+                await generateAiNotesAndMindMap();
+                switchMainTab('notes');
+              }
+            } else {
+              await generateAiNotesAndMindMap();
+            }
+          };
+          mediaRecorder.start();
+        }
+      } catch (err) {
+        // Microphone permission blocked in iframe or unavailable
+      }
+    }
+
+    function blobToBase64(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const res = String(reader.result || '');
+          const base64 = res.includes(',') ? res.split(',')[1] : res;
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    async function transcribeSavedAudioBlob() {
+      const s = getCurrentSession();
+      const hintEl = document.getElementById('audioTranscribeHint');
+      const btn = document.getElementById('btnTranscribeBlob');
+      if (!lastRecordedBlob) {
+        await generateAiNotesAndMindMap();
+        switchMainTab('notes');
+        return;
+      }
+
+      if (btn) btn.innerHTML = '<span>⏳ Mentranskrip Audio Rakaman...</span>';
+      if (hintEl) {
+        hintEl.classList.remove('hidden');
+        hintEl.textContent = 'Sedang menukar rakaman audio kepada teks transkrip dan menyusun nota AI...';
+      }
+
+      let transcribedSuccess = false;
+      try {
+        const b64 = await blobToBase64(lastRecordedBlob);
+        const mimeType = lastRecordedBlob.type ? lastRecordedBlob.type.split(';')[0] : 'audio/webm';
+        const apiKey = (appState.geminiApiKey || '').trim();
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { inlineData: { mimeType: mimeType, data: b64 } },
+                { text: 'Transkripkan rakaman suara ini ke dalam Bahasa Melayu dengan tepat. Jika tiada suara jelas, nyatakan ringkasan apa yang didengari. Pulangkan JSON sahaja dengan format: {"segments": [{"time": "00:05", "text": "..."}], "summary": "...", "keywords": ["..."], "takeaways": ["..."], "topics": [{"title": "1. ...", "subtitle": "...", "tag": "Topik 1", "subtopics": ["..."]}]}' }
+              ]
+            }]
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            if (Array.isArray(parsed.segments) && parsed.segments.length > 0) {
+              removeInitialSystemPlaceholder(s);
+              parsed.segments.forEach(seg => {
+                s.segments.push({
+                  time: seg.time || '00:05',
+                  speaker: s.speaker,
+                  text: seg.text,
+                  important: true
+                });
+              });
+              if (parsed.summary) s.summary = parsed.summary;
+              if (Array.isArray(parsed.keywords) && parsed.keywords.length > 0) s.keywords = parsed.keywords;
+              if (Array.isArray(parsed.takeaways) && parsed.takeaways.length > 0) s.takeaways = parsed.takeaways;
+              if (Array.isArray(parsed.topics) && parsed.topics.length > 0) {
+                s.topics = parsed.topics.map((t, idx) => ({
+                  id: 'audio-t-' + idx + '-' + Date.now(),
+                  title: t.title || `Topik ${idx + 1}`,
+                  subtitle: t.subtitle || 'Huraian isi penting',
+                  tag: t.tag || `Topik ${idx + 1}`,
+                  collapsed: false,
+                  subtopics: Array.isArray(t.subtopics) ? t.subtopics : []
+                }));
+              }
+              transcribedSuccess = true;
+            }
+          }
+        }
+      } catch (e) {
+        // Fallback handled below
+      }
+
+      if (btn) btn.innerHTML = '<span>✨ Transkrip Audio & Jana Nota AI</span>';
+
+      if (transcribedSuccess) {
+        if (hintEl) {
+          hintEl.textContent = '✅ Rakaman audio anda berjaya ditukar kepada teks, Nota AI (Tab 2) & Peta Minda (Tab 3)!';
+        }
+        saveStateToStorage();
+        refreshAllViews();
+        showToast('Transkrip audio & Nota AI berjaya dijana!');
+        switchMainTab('notes');
+      } else {
+        // Explain why iframe blocked Web Speech API without an API key and offer 1-click options
+        if (hintEl) {
+          hintEl.innerHTML = '💡 <strong>Info Pratonton:</strong> Tetingkap pratonton menyekat penukaran suara-ke-teks automatik tanpa kunci API. Apabila dimuat naik ke <strong>GitHub Pages</strong>, transkrip suara berfungsi 100% automatik di Chrome, atau klik <strong>AI Pintar Aktif</strong> di atas untuk memasukkan Gemini API Key. Anda juga boleh menaip isi rakaman di kotak kanan atau klik <strong>Simulasi Ceramah</strong>.';
+        }
+        const interimBox = document.getElementById('liveInterimBox');
+        if (interimBox) {
+          interimBox.innerHTML = `<span class="text-amber-300">Audio (${document.getElementById('liveTimerDisplay').textContent}) telah dirakam! Buka di GitHub Pages untuk transkrip suara percuma Chrome, atau taip isi di kanan & tekan "Jana Nota AI & Peta Minda".</span>`;
+        }
+        showToast('Audio disimpan! Lihat petunjuk di bawah pemain audio.', 'info');
+      }
     }
 
     // Live simulation mode for testing without microphone
@@ -1278,6 +1423,7 @@
       const input = document.getElementById('quickUtteranceInput');
       if (!input || !input.value.trim()) return;
       const s = getCurrentSession();
+      removeInitialSystemPlaceholder(s);
       appendTranscriptSegment(input.value.trim(), s.speaker);
       input.value = '';
       showToast('Baris transkrip ditambah.');
@@ -1296,6 +1442,7 @@
     function handleAudioFileUpload(event) {
       const file = event.target.files && event.target.files[0];
       if (!file) return;
+      lastRecordedBlob = file;
       const url = URL.createObjectURL(file);
       const player = document.getElementById('audioPlayback');
       const dlLink = document.getElementById('downloadAudioLink');
@@ -1307,10 +1454,11 @@
         box.classList.remove('hidden');
       }
       const s = getCurrentSession();
+      removeInitialSystemPlaceholder(s);
       s.title = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
       document.getElementById('sessionTitleInput').value = s.title;
-      appendTranscriptSegment(`[Fail Audio Dimuat Naik: ${file.name}] — Sedia untuk dianalisis atau dimainkan sambil menyemak transkrip.`, s.speaker);
-      showToast(`Fail audio "${file.name}" berjaya dimuatkan!`);
+      showToast(`Fail audio "${file.name}" dimuatkan! Memproses transkrip...`);
+      transcribeSavedAudioBlob();
     }
 
     // =========================================================================
